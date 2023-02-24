@@ -1,0 +1,10 @@
+version: '3.3'
+
+services:
+  wbhook:
+    image: gapp/webhook
+    build: .
+    volumes:
+      - ${BUILD_FOLDER}:${BUILD_FOLDER}
+    ports:
+      - ${PORT:-3009}:3000

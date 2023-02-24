@@ -8,12 +8,11 @@ app.use(express.json());
 const buildFolder = process.env.BUILD_FOLDER;
 const buildScript = process.env.BUILD_SCRIPT;
 const webhookUrl = process.env.WEBHOOK_SERVER_URL;
-const repoOwner = process.env.WEBHOOK_REPO_OWNER;
-const repo = process.env.WEBHOOK_REPO;
-const accessToken = process.env.WEBHOOK_SERVER_ACCESS_TOKEN;
 const webhookSecret = process.env.WEBHOOK_SECRET;
-
-let isRegistered = false;
+const repoOwner = process.env.GITHUB_REPO_OWNER;
+const repo = process.env.GITHUB_REPO;
+const accessToken = process.env.GITHUB_ACCESS_TOKEN;
+let repoHookId = process.env.GITHUB_REPO_HOOKID;
 
 if (
   !(
@@ -28,55 +27,49 @@ if (
 )
   throw new Error('No sufficient data provided.');
 
-// Register with GitHub
 app.post('/register', (req, res) => {
-  const active = req.body.active;
   if (webhookSecret != req.headers.authorization.substring(7)) {
     console.log('Unauthorized, ignoring...');
     return res.end();
   }
-  if (active && isRegistered) {
-    console.log('Already registered, ignoring...');
-    return res.end();
-  }
-  if (!active && !isRegistered) {
-    console.log('Already unregistered, ignoring...');
-    return res.end();
-  }
 
-  isRegistered = active;
+  const repoUrl = `https://api.github.com/repos/${repoOwner}/${repo}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+  };
 
-  const repoUrl = `https://api.github.com/repos/${repoOwner}/${repo}/hooks`;
-
-  const webhookContentType = 'json';
-  const webhookEvents = ['push', 'pull_request'];
-
-  fetch(repoUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      name: 'web',
-      active,
-      events: webhookEvents,
-      config: {
-        url: webhookUrl,
-        content_type: webhookContentType,
-        secret: webhookSecret,
-      },
-    }),
-  })
-    .then(response => response.json())
-    .then(data => {
-      console.log(data);
+  if (!repoHookId)
+    fetch(repoUrl + '/hooks', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: 'web',
+        active: true,
+        events: ['push', 'pull_request'],
+        config: {
+          url: webhookUrl,
+          content_type: 'json',
+          secret: webhookSecret,
+        },
+      }),
     })
-    .catch(error => {
-      console.error(error);
+      .then(response => response.json())
+      .then(data => {
+        repoHookId = data.id;
+        console.log('Registered');
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  else {
+    fetch(repoUrl + '/hooks/' + repoHookId, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ active }),
     });
-
-  console.log(active ? 'Registered' : 'Unregistered');
+    console.log(active ? 'Activated' : 'Inactivated');
+  }
   return res.status(200).end();
 });
 
@@ -86,7 +79,6 @@ app.post('/webhook', (req, res) => {
     req.body.action === 'closed' &&
     req.body.pull_request.merged
   ) {
-    // A pull request was merged, so run the script
     try {
       const buildProcess = spawn('sh', [
         '-c',

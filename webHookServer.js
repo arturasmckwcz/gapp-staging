@@ -63,6 +63,7 @@ app.post('/register', (req, res) => {
         console.error(error);
       });
   else {
+    const { active } = req.body;
     fetch(repoUrl + '/hooks/' + repoHookId, {
       method: 'PATCH',
       headers,

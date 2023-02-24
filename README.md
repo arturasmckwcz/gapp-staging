@@ -20,12 +20,21 @@ or if in a docker container
 $ yarn docker:run
 ```
 
-Once server is up'n'running register it with GitHub (change PORT and WEBHOOK_SECRET with corresponding values from `.env`)
+Once server is up'n'running and `GITHUB_REPO_HOOKID` is unset, register hook on GitHub (change `PORT`, `WEBHOOK_SECRET` and `WEBHOOK_SERVER_URL` with corresponding values from `.env`)
 
 ```
 $ curl -i -X 'POST' \
   -H "Authorization: Bearer WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{ active: true}' \
-  localhost:PORT/register
+  WEBHOOK_SERVER_URL
+```
+
+If it has been registered activate/inactivate it
+
+```
+$ curl -i -X 'POST' \
+  -H "Authorization: Bearer WEBHOOK_SECRET" \
+  -H "Content-Type: application/json" \
+  -d `{active:true}` \
+  WEBHOOK_SERVER_URL
 ```

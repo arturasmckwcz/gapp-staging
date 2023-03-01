@@ -1,7 +1,7 @@
 version: '3.3'
 
 services:
-  wbhook:
+  api:
     image: gapp/webhook
     build: .
     volumes:

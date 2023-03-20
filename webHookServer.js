@@ -1,3 +1,4 @@
+const fs = require('fs');
 const express = require('express');
 const { spawn } = require('child_process');
 const app = express();
@@ -6,6 +7,7 @@ require('dotenv').config();
 app.use(express.json());
 
 const buildFolder = process.env.BUILD_FOLDER;
+const updateScript = process.env.UPDATE_SCRIPT;
 const buildScript = process.env.BUILD_SCRIPT;
 const webhookUrl = process.env.WEBHOOK_SERVER_URL;
 const webhookSecret = process.env.WEBHOOK_SECRET;
@@ -26,6 +28,28 @@ if (
   )
 )
   throw new Error('No sufficient data provided.');
+
+const runScript = (script, res) => {
+  try {
+    const buildProcess = spawn('sh', ['-c', `cd ${buildFolder};${script}`]);
+
+    buildProcess.stdout.on('data', data => {
+      console.log(`stdout: ${data}`);
+    });
+
+    buildProcess.stderr.on('data', data => {
+      console.error(`stderr: ${data}`);
+    });
+
+    buildProcess.on('close', code => {
+      console.log(`child process exited with code ${code}`);
+    });
+
+    res.status(200).send('Build triggered');
+  } catch (error) {
+    console.error(error.message);
+  }
+};
 
 app.post('/register', (req, res) => {
   if (webhookSecret != req.headers.authorization.substring(7)) {
@@ -80,31 +104,28 @@ app.post('/webhook', (req, res) => {
     req.body.action === 'closed' &&
     req.body.pull_request.merged
   ) {
-    try {
-      const buildProcess = spawn('sh', [
-        '-c',
-        `cd ${buildFolder};${buildScript}`,
-      ]);
-
-      buildProcess.stdout.on('data', data => {
-        console.log(`stdout: ${data}`);
-      });
-
-      buildProcess.stderr.on('data', data => {
-        console.error(`stderr: ${data}`);
-      });
-
-      buildProcess.on('close', code => {
-        console.log(`child process exited with code ${code}`);
-      });
-
-      res.status(200).send('Build triggered');
-    } catch (error) {
-      console.error(error.message);
-    }
+    runScript(updateScript, res);
+  } else if (
+    req.headers['x-github-event'] === 'check_run' &&
+    req.body.action === 'completed' &&
+    req.body.check_run.name === 'build-and-push'
+  ) {
+    runScript(buildScript, res);
   } else {
     res.status(200).send('Notification ignored');
   }
+  fs.appendFile(
+    'webhooklog.json',
+    `${new Date().toISOString()}` +
+      '\n' +
+      `${JSON.stringify(req.headers, null, 2)}
+      ${JSON.stringify(req.body, null, 2)}` +
+      '\n\n',
+    error => {
+      if (error) console.error(error);
+      console.log('LOG: written.');
+    },
+  );
 });
 
 const port = process.env.PORT || 3000;

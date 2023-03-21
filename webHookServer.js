@@ -1,4 +1,3 @@
-const fs = require('fs');
 const express = require('express');
 const { spawn } = require('child_process');
 const app = express();
@@ -114,18 +113,6 @@ app.post('/webhook', (req, res) => {
   } else {
     res.status(200).send('Notification ignored');
   }
-  fs.appendFile(
-    'webhooklog.json',
-    `${new Date().toISOString()}` +
-      '\n' +
-      `${JSON.stringify(req.headers, null, 2)}
-      ${JSON.stringify(req.body, null, 2)}` +
-      '\n\n',
-    error => {
-      if (error) console.error(error);
-      console.log('LOG: written.');
-    },
-  );
 });
 
 const port = process.env.PORT || 3000;
